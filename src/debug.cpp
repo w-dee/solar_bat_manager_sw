@@ -12,15 +12,13 @@ int __dbg_printf(const char * sFormat, ...)
 {
     int result;
     va_list args;
-    char buf[DBG_PRINTF_MAX_CHARS+1];
+    char buf[DBG_PRINTF_MAX_CHARS];
 
     va_start(args, sFormat);
 
-    result = vsnprintf(buf, sizeof(buf-1), sFormat, args);
+    result = vsnprintf(buf, sizeof(buf), sFormat, args);
 
     va_end(args);
-
-    buf[sizeof(buf)-1] = 0; // terminate the string anyway
 
     SEGGER_RTT_Write(0, buf, strlen(buf));
 
