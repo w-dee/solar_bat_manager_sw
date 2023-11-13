@@ -1,8 +1,10 @@
+#include <Arduino.h>
 #include <math.h>
-#include "thermistor.h"
 #include <stdint.h>
 #include <string.h>
-
+#include "thermistor.h"
+#include "adc.h"
+#include "pins.h"
 
 /**
  * Calculate thermistor temperature from normalized (0.0 to 1.0) ADC value.
@@ -168,4 +170,24 @@ float thermistor_converter_t::convert(const float T0, const float B, const float
 	float T_K = (T0_K * B) / (T0_K * approximate_logf(Rt / R0) + B);
 	return T_K - K0;
 
+}
+
+
+static thermistor_converter_t th_charger(THERMISTOR_T0, THERMISTOR_BETA, THERMISTOR_R0, THERMISTOR_RP);
+static thermistor_converter_t th_battery(THERMISTOR_T0, THERMISTOR_BETA, THERMISTOR_R0, THERMISTOR_RP);
+
+/**
+ * Read thermistor temperature at the charger IC, and retuns the temperature in deg C.
+*/
+float thermistor_read_charger()
+{
+    return th_charger.calc(adc_read_normalized(PIN_THERM_CHG));
+}
+
+/**
+ * Read thermistor temperature at the li-ion battery, and retuns the temperature in deg C.
+*/
+float thermistor_read_battery()
+{
+    return th_battery.calc(adc_read_normalized(PIN_THERM_CHG));
 }
