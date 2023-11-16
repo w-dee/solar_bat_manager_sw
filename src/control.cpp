@@ -16,7 +16,7 @@
 #define CHARGING_CURRENT_PWM_WIDTH 10 // pwm width in bits
 #define MAX_CHARGING_CURRENT_INDEX ((1<<CHARGING_CURRENT_PWM_WIDTH)-1)
 
-#define MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE 0.3 // in V, to charge, charger IC input voltage must be higher than battery_voltage + this constant
+#define MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE 0.3f // in V, to charge, charger IC input voltage must be higher than battery_voltage + this constant
 /**
  * Read charger charging state; Charger IC is MCP73831
 */
