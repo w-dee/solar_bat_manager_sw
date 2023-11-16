@@ -143,7 +143,5 @@ void loop()
     float temp = conv.calc(analogRead(PIN_ANALOG) * (1.0f / ((float)(1<<10) -1) ));
     dbg_printf("temp: %d", (int)(temp + 0.5f));
     */
-    String s = float_to_string(thermistor_read_charger());
-    dbg_printf("Charger IC temperature: %s\n", s.c_str());
     control_check();
 }
