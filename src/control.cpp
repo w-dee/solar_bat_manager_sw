@@ -16,8 +16,11 @@
 #define CHARGING_CURRENT_INDEX_STEP 10 // step count for increase/decrease charging current index
 #define CHARGING_CURRENT_PWM_WIDTH 10 // pwm width in bits
 #define MAX_CHARGING_CURRENT_INDEX ((1<<CHARGING_CURRENT_PWM_WIDTH)-1)
-
+#define MIN_BATTERY_VOLTAGE 3.6f // Minimum battery voltage  
+#define VALID_POWER_INCREASE 0.1f // in mW; if the power is increased but the difference is under this value when increasing the current, current increasing it not taken 
 #define MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE 0.3f // in V, to charge, charger IC input voltage must be higher than battery_voltage + this constant
+#define MIN_SOLAR_VOLTAGE (MIN_BATTERY_VOLTAGE + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE)
+
 /**
  * Read charger charging state; Charger IC is MCP73831
 */
@@ -102,7 +105,7 @@ public:
     float charger_temp = 0; // in deg. C
     float charging_current = 0; // in mA
     float charging_power = 0; // charging power = in mW
-    chip_charging_state_t charger_charging_state = ccs_not_charging_nor_complete;
+    chip_charging_state_t chip_charging_state = ccs_not_charging_nor_complete;
 
 private:
     /**
@@ -118,6 +121,13 @@ private:
         charging_current_index = idx;
     }
 
+    float prev_sol_vol, prev_power;
+    float prev_current;
+    float decreased_current, increased_current;
+    float decreased_power, increased_power;
+    int prev_current_index;
+    int decreased_current_index, increased_current_index;
+    float decreased_solar_voltage, increased_solar_voltage;
 
 public:
     /**
@@ -183,81 +193,85 @@ public:
 
             track:
                 // Do Maximum Power Point Tracking (MPPT)
+                prev_sol_vol = adc_read_solar_voltage();
+                prev_current_index = charging_current_index;
+                prev_power = charging_power;
+
+                // measure charging power using decreased current
+                set_charging_current(prev_current_index - CHARGING_CURRENT_INDEX_STEP);
+                decreased_current_index = charging_current_index;
+                DELAY(CHARGE_CURRENT_STABILIZE_TIME);
+                decreased_current = adc_read_charger_current_indication();
+                decreased_solar_voltage = adc_read_solar_voltage();
+                decreased_power = decreased_current * decreased_solar_voltage;
+
+                // measure charging power using increased current
+                set_charging_current(prev_current_index + CHARGING_CURRENT_INDEX_STEP);
+                increased_current_index = charging_current_index;
+                DELAY(CHARGE_CURRENT_STABILIZE_TIME);
+                increased_current = adc_read_charger_current_indication();
+                increased_solar_voltage = adc_read_solar_voltage();
+                increased_power = increased_current * increased_solar_voltage;                    
+
+                // check which is larger
+                if(increased_power >= prev_power + VALID_POWER_INCREASE)
                 {
-                    chip_charging_state_t ccs;
-                    float prev_sol_vol, prev_power;
-                    float prev_current;
-                    float decreased_current, increased_current;
-                    float decreased_power, increased_power;
-                    int prev_current_index;
-                    int decreased_current_index, increased_current_index;
-                    float decreased_solar_voltage, increased_solar_voltage;
-                    prev_sol_vol = adc_read_solar_voltage();
-                    prev_current_index = charging_current_index;
-                    prev_power = charging_power;
+                    set_charging_current(increased_current_index);
+                    charging_current = increased_current;
+                    solar_voltage = increased_solar_voltage;
+                    charging_power = increased_power;
+                }
+                else
+                {
+                    set_charging_current(decreased_current_index);
+                    charging_current = decreased_current;
+                    solar_voltage = decreased_solar_voltage;
+                    charging_power = decreased_power;
+                }
 
-                    // measure charging power using decreased current
-                    set_charging_current(prev_current_index - CHARGING_CURRENT_INDEX_STEP);
-                    decreased_current_index = charging_current_index;
-                    DELAY(CHARGE_CURRENT_STABILIZE_TIME);
-                    decreased_current = adc_read_charger_current_indication();
-                    decreased_solar_voltage = adc_read_solar_voltage();
-                    decreased_power = decreased_current * decreased_solar_voltage;
+                adc_connect_battery_voltage();
+                DELAY(1);
+                battery_voltage = adc_read_battery_voltage();
+                adc_disconnect_battery_voltage();
 
-                    // measure charging power using increased current
-                    set_charging_current(prev_current_index + CHARGING_CURRENT_INDEX_STEP);
-                    increased_current_index = charging_current_index;
-                    DELAY(CHARGE_CURRENT_STABILIZE_TIME);
-                    increased_current = adc_read_charger_current_indication();
-                    increased_solar_voltage = adc_read_solar_voltage();
-                    increased_power = increased_current * increased_solar_voltage;                    
+                chip_charging_state = read_charger_chip_charging_state();
 
-                    // check which is larger
-                    if(decreased_power >= prev_power) // give bias to "decreasing" current
+                if(solar_voltage < MIN_SOLAR_VOLTAGE)
+                {
+                    // solar voltage too low;
+                    // charger chip is likely under UVLO
+                    goto solar_too_low;
+                }
+                else
+                {
+                    if(chip_charging_state == ccs_complete || chip_charging_state == ccs_charging)
                     {
-                        set_charging_current(decreased_current_index);
-                        charging_current = decreased_current;
-                        solar_voltage = decreased_solar_voltage;
-                        charging_power = decreased_power;
-                    }
-                    else /*if(increased_current > prev_power)*/
-                    {
-                        set_charging_current(increased_current_index);
-                        charging_current = increased_current;
-                        solar_voltage = increased_solar_voltage;
-                        charging_power = increased_power;
-                    }
-
-                    adc_connect_battery_voltage();
-                    DELAY(1);
-                    battery_voltage = adc_read_battery_voltage();
-                    adc_disconnect_battery_voltage();
-
-                    ccs = read_charger_chip_charging_state();
-
-                    switch(ccs)
-                    {
-                    case ccs_complete:
-                    case ccs_charging:
                         charging_state = cs_charging;
                         not_charging_reason = ncr_unknown;
-                        break;
-                
-                    case ccs_not_charging_nor_complete:
+                    }
+                    else if(chip_charging_state == ccs_not_charging_nor_complete)
+                    {
                         charging_state = cs_not_charging;
-                            
+
                         // check why the charging is not proceeding
-                        
-                        if(solar_voltage < battery_voltage + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE)
-                            not_charging_reason = ncr_solar_voltage_too_low;
+                    solar_too_low:
+                        if(battery_voltage < MIN_BATTERY_VOLTAGE)
+                        {
+                            not_charging_reason = ncr_battery_error;
+                        }
                         else
-                            not_charging_reason = ncr_unknown; // unknown reason ...
-                        
-                    } // switch(ccs)
+                        {
+                            if(solar_voltage < battery_voltage + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE ||
+                                solar_voltage < MIN_SOLAR_VOLTAGE)
+                                not_charging_reason = ncr_solar_voltage_too_low;
+                            else
+                                not_charging_reason = ncr_unknown; // unknown reason ...
+                        }
+                    } // if
+                } // if
 
+                goto wait;
 
-                    goto wait;
-                }
             } // switch
         } // while(true)
     } // void check()
@@ -265,37 +279,43 @@ public:
     String to_string()
     {
         const char * ncr = nullptr;
+        bool temperature_error = false;
         switch(not_charging_reason)
         {
-        case ncr_battery_temp_too_high:         ncr = "BAT_TEMP_HIGH";      break;
-        case ncr_battery_temp_too_low:          ncr = "BAT_TEMP_LOW";       break;
-        case ncr_charger_temp_too_high:         ncr = "CHIP_TEMP_HIGH";     break;
+        case ncr_battery_temp_too_high:         ncr = "BAT_TEMP_HIGH";      temperature_error = true; break;
+        case ncr_battery_temp_too_low:          ncr = "BAT_TEMP_LOW";       temperature_error = true; break;
+        case ncr_charger_temp_too_high:         ncr = "CHIP_TEMP_HIGH";     temperature_error = true; break;
         case ncr_solar_voltage_too_low:         ncr = "SOLAR_TOO_LOW";      break;
+        case ncr_battery_error:                 ncr = "BATTERY_ERROR";      break;
         case ncr_unknown:                       ncr = "NOT_SET";            break;
         }
 
         const char *cs = nullptr;
-        switch(charger_charging_state)
+        switch(charging_state)
         {
         case cs_charging:                       cs = "CHARGING";            break;
         case cs_not_charging:                   cs = "NOT_CHARGING";        break;
         }
 
-        String str(ncr);
+        String str(cs);
         str += " ";
-        str += cs;
-        str += " ";
+        str += ncr;
 
         #define S_OUT(x) str += " " #x ":" + float_to_string(x)
 
-        str += "charging_current_index:" + String(charging_current_index);
-        S_OUT(battery_voltage);
-        S_OUT(solar_voltage);
-        S_OUT(prog_voltage);
         S_OUT(battery_temp);
         S_OUT(charger_temp);
-        S_OUT(charging_current);
-        S_OUT(charging_power);
+        if(!temperature_error)
+        {
+            // on temperature error, these measurements will not be taken
+            str += " charging_current_index:" + String(charging_current_index);
+            S_OUT(battery_voltage);
+            S_OUT(solar_voltage);
+            S_OUT(prog_voltage);
+            S_OUT(charging_current);
+            S_OUT(charging_power);
+        }
+        str += "\n";
 
         return str;
     }

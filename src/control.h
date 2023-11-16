@@ -20,7 +20,8 @@ enum not_charging_reason_t
     ncr_battery_temp_too_high, // battery temperature too high
     ncr_battery_temp_too_low, // battery temperature too low
     ncr_charger_temp_too_high, // charging chip temperature is too high
-    ncr_solar_voltage_too_low // solar voltage is too low
+    ncr_solar_voltage_too_low, // solar voltage is too low
+    ncr_battery_error, // battery not connected or abnormal battery state
 };
 
 /**
