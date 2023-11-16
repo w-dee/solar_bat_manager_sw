@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Arduino.h>
+
 /**
  * battery charging state
 */
@@ -37,3 +39,5 @@ enum chip_charging_state_t
 void control_check();
 
 void control_init();
+
+String control_charging_status_to_string();

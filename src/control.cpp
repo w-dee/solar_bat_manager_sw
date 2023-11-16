@@ -3,7 +3,8 @@
 #include "adc.h"
 #include "thermistor.h"
 #include "pins.h"
-
+#include "ftostrf.h"
+#include "debug.h"
 
 #define BATTERY_CHARGEABLE_TEMP_LOW 0
 #define BATTERY_CHARGEABLE_TEMP_HIGH 45
@@ -151,6 +152,7 @@ public:
                 set_charging_current(0);
 
             wait:
+                dbg_print(to_string().c_str());
                 DELAY(WAIT_TIME);
 
             temp:
@@ -259,6 +261,44 @@ public:
             } // switch
         } // while(true)
     } // void check()
+
+    String to_string()
+    {
+        const char * ncr = nullptr;
+        switch(not_charging_reason)
+        {
+        case ncr_battery_temp_too_high:         ncr = "BAT_TEMP_HIGH";      break;
+        case ncr_battery_temp_too_low:          ncr = "BAT_TEMP_LOW";       break;
+        case ncr_charger_temp_too_high:         ncr = "CHIP_TEMP_HIGH";     break;
+        case ncr_solar_voltage_too_low:         ncr = "SOLAR_TOO_LOW";      break;
+        case ncr_unknown:                       ncr = "NOT_SET";            break;
+        }
+
+        const char *cs = nullptr;
+        switch(charger_charging_state)
+        {
+        case cs_charging:                       cs = "CHARGING";            break;
+        case cs_not_charging:                   cs = "NOT_CHARGING";        break;
+        }
+
+        String str(ncr);
+        str += " ";
+        str += cs;
+        str += " ";
+
+        #define S_OUT(x) str += " " #x ":" + float_to_string(x)
+
+        str += "charging_current_index:" + String(charging_current_index);
+        S_OUT(battery_voltage);
+        S_OUT(solar_voltage);
+        S_OUT(prog_voltage);
+        S_OUT(battery_temp);
+        S_OUT(charger_temp);
+        S_OUT(charging_current);
+        S_OUT(charging_power);
+
+        return str;
+    }
 };
 
 static battery_manager_t battery_manager;
@@ -271,4 +311,9 @@ void control_check()
 void control_init()
 {
     battery_manager.init();
+}
+
+String control_charging_status_to_string()
+{
+    return battery_manager.to_string();
 }
