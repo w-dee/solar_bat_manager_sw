@@ -1,4 +1,6 @@
-#include "../rtt/SEGGER_RTT.h"
+#ifdef USE_SEGGER_RTT
+    #include "../rtt/SEGGER_RTT.h"
+#endif
 #include "stdio.h"
 #include "debug.h"
 #include <stdarg.h>
@@ -7,7 +9,7 @@
 // this is a make-shift version of RTT_vprintf, but uses Arduino printf to reduce executable size.
 // the maximum size which can be printed in one call of the function, is up to DBG_PRINTF_MAX_CHARS.
 
-
+#ifdef USE_SEGGER_RTT
 int __dbg_printf(const char * sFormat, ...)
 {
     int result;
@@ -24,3 +26,16 @@ int __dbg_printf(const char * sFormat, ...)
 
     return result;
 }
+
+void dbg_print(const char *s)
+{
+    SEGGER_RTT_Write(0, s, strlen(s));
+}
+
+#else
+
+void dbg print(const char *s)
+{
+    printf("%s", s);
+}
+#endif
