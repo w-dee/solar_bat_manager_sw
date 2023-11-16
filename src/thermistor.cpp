@@ -161,11 +161,11 @@ float thermistor_converter_t::convert(const float T0, const float B, const float
         return T_K - K0;  // ℃単位で返す
     */
 
-   if(adc_val_normalized == 1.0)
+   if(adc_val_normalized == 1.0f)
         return (float)NAN; // possible divide by zero
 
     float T0_K = T0 + K0;
-	float Rt = - (RP * adc_val_normalized) / (adc_val_normalized - 1.0);
+	float Rt = - (RP * adc_val_normalized) / (adc_val_normalized - 1.0f);
 
 	float T_K = (T0_K * B) / (T0_K * approximate_logf(Rt / R0) + B);
 	return T_K - K0;
