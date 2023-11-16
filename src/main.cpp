@@ -3,6 +3,39 @@
 #include <Wire.h>
 #include "thermistor.h"
 #include "adc.h"
+#include "pins.h"
+#include "control.h"
+#include "ftostrf.h"
+
+
+#if 0
+/**
+ * print I2C_TIMING_XXX constants required not to include large code in i2c_computeTiming() 
+*/
+static void print_i2c_timing_constants()
+{
+    Wire.begin(/*sda:*/ (uint32_t) /*PB7*/ D21, /*scl:*/ (uint32_t) /*PB6*/ D20); // use Arduino Dxxx pin number name; refer to "variant_generic.cpp"
+//    dump_i2c();
+
+    Wire.setClock(1000000);
+    dbg_printf("-DI2C_TIMING_FMP=0x%08X ", Wire.getHandle()->Init.Timing);
+    Wire.end();
+
+    Wire.begin(/*sda:*/ (uint32_t) /*PB7*/ D21, /*scl:*/ (uint32_t) /*PB6*/ D20); // use Arduino Dxxx pin number name; refer to "variant_generic.cpp"
+//    dump_i2c();
+
+    Wire.setClock(400000);
+    dbg_printf("-DI2C_TIMING_FM=0x%08X ", Wire.getHandle()->Init.Timing);
+    Wire.end();
+
+    Wire.begin(/*sda:*/ (uint32_t) /*PB7*/ D21, /*scl:*/ (uint32_t) /*PB6*/ D20); // use Arduino Dxxx pin number name; refer to "variant_generic.cpp"
+//    dump_i2c();
+
+    Wire.setClock(10000);
+    dbg_printf("-DI2C_TIMING_SM=0x%08X\n", Wire.getHandle()->Init.Timing);
+    Wire.end();
+}
+#endif
 
 /**
  * Check OptionBytes whether boot0 pin is enabled or not.
@@ -45,7 +78,7 @@ static void check_boot0_pin()
         HAL_FLASH_Lock();
     }
 }
-
+/*
 void dump_i2c()
 {
     dbg_printf("I2C subsystem initializing...\n");
@@ -75,6 +108,8 @@ void dump_i2c()
     }
     dbg_printf("\n");
 }
+*/
+
 
 void setup()
 {
@@ -86,11 +121,14 @@ void setup()
     pinMode(D21, INPUT_PULLUP);
     pinMode(D20, INPUT_PULLUP);
 
-    Wire.begin(/*sda:*/ (uint32_t) /*PB7*/ D21, /*scl:*/ (uint32_t) /*PB6*/ D20); // use Arduino Dxxx pin number name; refer to "variant_generic.cpp"
-    dump_i2c();
+    control_init();
+    init_adc();
 
-    analogWriteFrequency(62500);
-    analogWriteResolution(10);
+    Wire.begin(/*sda:*/ (uint32_t) /*PB7*/ D21, /*scl:*/ (uint32_t) /*PB6*/ D20); // use Arduino Dxxx pin number name; refer to "variant_generic.cpp"
+//    dump_i2c();
+
+    Wire.setClock(400000);
+
 }
 
 void loop()
@@ -105,8 +143,7 @@ void loop()
     float temp = conv.calc(analogRead(PIN_ANALOG) * (1.0f / ((float)(1<<10) -1) ));
     dbg_printf("temp: %d", (int)(temp + 0.5f));
     */
-    init_adc();
-    String s(thermistor_read_charger());
+    String s = float_to_string(thermistor_read_charger());
     dbg_printf("Charger IC temperature: %s\n", s.c_str());
-    delay(1000);
+    control_check();
 }

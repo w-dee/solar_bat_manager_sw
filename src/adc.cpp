@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include "debug.h"
 #include "adc.h"
+#include "pins.h"
+#include "ftostrf.h"
 
 static constexpr int adc_resolution = 12;
 static constexpr uint32_t adc_max_value = (1<<adc_resolution) - 1;
@@ -35,10 +37,11 @@ void init_adc()
     VrefPos = VrefCal / raw_value * adc_max_value;
     VrefPos_div_adc_max_value = VrefPos * (1.0f /  adc_max_value);
 
-    String s1(VrefCal);
-    String s2(VrefPos);
+    String s1 = float_to_string(VrefCal);
+    String s2 = float_to_string(VrefPos);
     dbg_printf("init_adc(): *VREFINT_CAL_ADDR=%d, Vref_int=%sV, Vref+=%sV\n",
         *VREFINT_CAL_ADDR, s1.c_str(), s2.c_str());
+
 }
 
 
@@ -60,4 +63,40 @@ float adc_read_normalized(uint32_t pin)
 {
     uint32_t raw_value = analogRead(pin);
     return raw_value * (1.0f / adc_max_value);
+}
+
+void adc_connect_battery_voltage()
+{
+    pinMode(PIN_ENABLE_BATTERY_MEASUREMENT, OUTPUT);
+    digitalWrite(PIN_ENABLE_BATTERY_MEASUREMENT, HIGH);
+}
+
+void adc_disconnect_battery_voltage()
+{
+    digitalWrite(PIN_ENABLE_BATTERY_MEASUREMENT, LOW);
+}
+
+#define R_DIVIDER(HIGHER_R, LOWER_R) ((((float)(LOWER_R)+(float)(HIGHER_R)) / ((float)(LOWER_R))))
+
+#define DIVIDER_R_BATTERY_VOLTAGE_HIGH 22 // voltage divider value of higher resistor (in k Ohm)
+#define DIVIDER_R_BATTERY_VOLTAGE_LOW  22 // voltage divider value of lower resistor (in k Ohm)
+float adc_read_battery_voltage()
+{
+    float value = adc_read_voltage(PIN_BATTERY_VOLTAGE);
+    return value * R_DIVIDER(DIVIDER_R_BATTERY_VOLTAGE_HIGH, DIVIDER_R_BATTERY_VOLTAGE_LOW);
+}
+
+#define DIVIDER_R_SOLAR_VOLTAGE_HIGH 47  // voltage divider value of higher resistor (in k Ohm)
+#define DIVIDER_R_SOLAR_VOLTAGE_LOW 22 // voltage divider value of lower resistor (in k Ohm)
+float adc_read_solar_voltage()
+{
+    return adc_read_voltage(PIN_SOLAR_VOLTAGE) * R_DIVIDER(DIVIDER_R_SOLAR_VOLTAGE_HIGH, DIVIDER_R_SOLAR_VOLTAGE_LOW);
+}
+
+#define CHARGER_INDICATION_LOAD_RESISTANCE 470 // value of R31 in Ohm
+#define MCP73831_G 1000.0f // ratio of MCP73831 "prog" current to charge current setting
+float adc_read_charger_current_indication()
+{
+    float value = adc_read_voltage(PIN_PROG_VOLTAGE_SENSE);
+    return value * (MCP73831_G / (float)(CHARGER_INDICATION_LOAD_RESISTANCE) * 1000.0f /* A -> mA */);
 }

@@ -173,15 +173,14 @@ float thermistor_converter_t::convert(const float T0, const float B, const float
 }
 
 
-static thermistor_converter_t th_charger(THERMISTOR_T0, THERMISTOR_BETA, THERMISTOR_R0, THERMISTOR_RP);
-static thermistor_converter_t th_battery(THERMISTOR_T0, THERMISTOR_BETA, THERMISTOR_R0, THERMISTOR_RP);
+static thermistor_converter_t thermistor(THERMISTOR_T0, THERMISTOR_BETA, THERMISTOR_R0, THERMISTOR_RP);
 
 /**
  * Read thermistor temperature at the charger IC, and retuns the temperature in deg C.
 */
 float thermistor_read_charger()
 {
-    return th_charger.calc(adc_read_normalized(PIN_THERM_CHG));
+    return thermistor.calc(adc_read_normalized(PIN_THERM_CHG));
 }
 
 /**
@@ -189,5 +188,5 @@ float thermistor_read_charger()
 */
 float thermistor_read_battery()
 {
-    return th_battery.calc(adc_read_normalized(PIN_THERM_CHG));
+    return thermistor.calc(adc_read_normalized(PIN_THERM_CHG));
 }
