@@ -13,9 +13,9 @@
 #define WAIT_TIME 100 // control loop wait time in ms
 #define CHARGE_CURRENT_STABILIZE_TIME 10 // in ms
 
-#define CHARGING_CURRENT_INDEX_STEP 10 // step count for increase/decrease charging current index
 #define CHARGING_CURRENT_PWM_WIDTH 10 // pwm width in bits
 #define MAX_CHARGING_CURRENT_INDEX ((1<<CHARGING_CURRENT_PWM_WIDTH)-1)
+#define MAX_CHARGING_CURRENT_INDEX_STEP MAX_CHARGING_CURRENT_INDEX // maximum step count for increase/decrease charging current index
 #define MIN_BATTERY_VOLTAGE 3.6f // Minimum battery voltage  
 #define VALID_POWER_INCREASE 0.1f // in mW; if the power is increased but the difference is under this value when increasing the current, current increasing it not taken 
 #define MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE 0.3f // in V, to charge, charger IC input voltage must be higher than battery_voltage + this constant
@@ -56,8 +56,16 @@ static chip_charging_state_t read_charger_chip_charging_state()
 }
 
 
-
-
+/**
+ * simple lfsr
+*/
+static uint32_t lfsr(int bits)
+{
+    static uint32_t lfsr = 1;
+    for(int i = 0; i < bits; ++i)
+        lfsr = (lfsr >> 1) ^ (-(lfsr & 1u) & 0xd0000001u); /* taps 32 31 29 1 */
+    return lfsr >> (32 - bits);
+}
 
 
 /**
@@ -121,6 +129,7 @@ private:
         charging_current_index = idx;
     }
 
+    int increase_steps, decrease_steps;
     float prev_sol_vol, prev_power;
     float prev_current;
     float decreased_current, increased_current;
@@ -197,8 +206,12 @@ public:
                 prev_current_index = charging_current_index;
                 prev_power = charging_power;
 
+                // decide random walk steps
+                do { decrease_steps = lfsr(CHARGING_CURRENT_PWM_WIDTH); } while(decrease_steps == 0);
+                do { increase_steps = lfsr(CHARGING_CURRENT_PWM_WIDTH); } while(increase_steps == 0);
+
                 // measure charging power using decreased current
-                set_charging_current(prev_current_index - CHARGING_CURRENT_INDEX_STEP);
+                set_charging_current(prev_current_index - decrease_steps); // random walk
                 decreased_current_index = charging_current_index;
                 DELAY(CHARGE_CURRENT_STABILIZE_TIME);
                 decreased_current = adc_read_charger_current_indication();
@@ -206,7 +219,7 @@ public:
                 decreased_power = decreased_current * decreased_solar_voltage;
 
                 // measure charging power using increased current
-                set_charging_current(prev_current_index + CHARGING_CURRENT_INDEX_STEP);
+                set_charging_current(prev_current_index + increase_steps); // random walk
                 increased_current_index = charging_current_index;
                 DELAY(CHARGE_CURRENT_STABILIZE_TIME);
                 increased_current = adc_read_charger_current_indication();
