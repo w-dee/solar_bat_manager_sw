@@ -69,6 +69,17 @@ static uint32_t lfsr(int bits)
 
 
 /**
+ * returns random increase/decrease step
+*/
+static int random_step()
+{
+    uint32_t n;
+    n = lfsr(CHARGING_CURRENT_PWM_WIDTH) + 1; // get non-zero random value
+    if(n > (1<<CHARGING_CURRENT_PWM_WIDTH) - 1) n = (1<<CHARGING_CURRENT_PWM_WIDTH) - 1;
+    return (n * n) >> CHARGING_CURRENT_PWM_WIDTH; // use n^2 curve to give more probability to smaller values
+}
+
+/**
  * coroutine stuff
 */
 #define ___YIELD2(COUNTER) \
@@ -108,7 +119,6 @@ public:
     int charging_current_index = 0;
     float battery_voltage = 0; // in V
     float solar_voltage = 0; // in V
-    float prog_voltage = 0; // in V
     float battery_temp = 0; // in deg. C
     float charger_temp = 0; // in deg. C
     float charging_current = 0; // in mA
@@ -207,8 +217,8 @@ public:
                 prev_power = charging_power;
 
                 // decide random walk steps
-                do { decrease_steps = lfsr(CHARGING_CURRENT_PWM_WIDTH); } while(decrease_steps == 0);
-                do { increase_steps = lfsr(CHARGING_CURRENT_PWM_WIDTH); } while(increase_steps == 0);
+                decrease_steps = random_step();
+                increase_steps = random_step();
 
                 // measure charging power using decreased current
                 set_charging_current(prev_current_index - decrease_steps); // random walk
@@ -322,10 +332,9 @@ public:
         {
             // on temperature error, these measurements will not be taken
             str += " charging_current_index:" + String(charging_current_index);
+            S_OUT(charging_current);
             S_OUT(battery_voltage);
             S_OUT(solar_voltage);
-            S_OUT(prog_voltage);
-            S_OUT(charging_current);
             S_OUT(charging_power);
         }
         str += "\n";
