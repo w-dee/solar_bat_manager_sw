@@ -15,7 +15,7 @@ As of Nov 2023, STM32G030F6 is not yet available in PlatformIO but using custom 
 
 # How to reduce the flash code size without giving up on using Arduino
  + `-DPIO_FRAMEWORK_ARDUINO_SERIAL_DISABLED` to disable HUGE serial driver.
- + Use can use Segger RTT (RealTimeTerminal) instead of serial connection. Segger J-Link software will be automatically installed via PlatformIO if you specify JLink for uploading/debugging. Also you can install JLink firmware to STLink V2, using https://www.segger.com/products/debug-probes/j-link/models/other-j-links/st-link-on-board/ . SEE "Terms Of Use" BEFORE USING THE SOFTWARE AND/OR THE FIRMWARE.
+ + Use can use Segger RTT (RealTimeTerminal) instead of serial connection. Segger J-Link software will be automatically installed via PlatformIO if you specify JLink for uploading/debugging. Also you can install JLink firmware to STLink V2, using https://www.segger.com/products/debug-probes/j-link/models/other-j-links/st-link-on-board/ . SEE "Terms Of Use" BEFORE USING THE SOFTWARE AND/OR THE FIRMWARE. Alternatively you can use OpenOCD for communicating via RTT using arbitrary JTAG/SWD adapter: https://openocd.org/doc/html/General-Commands.html#Real-Time-Transfer-_0028RTT_0029
  + Define -DI2C_TIMING_FMP=xxxx -DI2C_TIMING_FM=xxxx -DI2C_TIMING_SM=xxxx constants to avoid linking brute-force, fat code for finding optimal I2C timing. See main.cpp .
  + Do not use double precision floats if possible. Use prefix "f" (eg. 0.0f, 3.14f ...) to make the constant float.
  + Avoid using logf and expf (and other math functions) if possible. See thermistor.cpp for smaller implementations of logf and expf.
