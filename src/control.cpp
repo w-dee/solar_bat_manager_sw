@@ -10,16 +10,16 @@
 #define BATTERY_CHARGEABLE_TEMP_HIGH 45
 #define CHARGER_MAX_TEMP 80
 
-#define WAIT_TIME 100 // control loop wait time in ms
-#define CHARGE_CURRENT_STABILIZE_TIME 10 // in ms
+#define WAIT_TIME 200 // control loop wait time in ms
+#define CHARGE_CURRENT_STABILIZE_TIME 20 // in ms
 
 #define CHARGING_CURRENT_PWM_WIDTH 10 // pwm width in bits
 #define CHARGING_CURRENT_PWM_FREQUENCY 62500
 #define MAX_CHARGING_CURRENT_INDEX ((1<<CHARGING_CURRENT_PWM_WIDTH)-1)
 #define MAX_CHARGING_CURRENT_INDEX_STEP MAX_CHARGING_CURRENT_INDEX // maximum step count for increase/decrease charging current index
 #define MIN_BATTERY_VOLTAGE 3.6f // Minimum battery voltage  
-#define VALID_POWER_INCREASE 0.1f // in mW; if the power is increased but the difference is under this value when increasing the current, current increasing it not taken 
-#define MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE 0.3f // in V, to charge, charger IC input voltage must be higher than battery_voltage + this constant
+//#define VALID_POWER_INCREASE 0.1f // in mW; if the power is increased but the difference is under this value when increasing the current, current increasing it not taken 
+#define MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE 0.35f // in V, to charge, charger IC input voltage must be higher than battery_voltage + this constant
 #define MIN_SOLAR_VOLTAGE (MIN_BATTERY_VOLTAGE + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE)
 
 /**
@@ -29,10 +29,13 @@ static chip_charging_state_t read_charger_chip_charging_state()
 {
     // PIN_BATTERY_CHARGER_STAT is 3-state.
     pinMode(PIN_BATTERY_CHARGER_STAT, INPUT);
+    delayMicroseconds(100);
     bool Z_state = digitalRead(PIN_BATTERY_CHARGER_STAT) == HIGH;
     pinMode(PIN_BATTERY_CHARGER_STAT, INPUT_PULLUP);
+    delayMicroseconds(100);
     bool pullup_ed_state = digitalRead(PIN_BATTERY_CHARGER_STAT) == HIGH;
     pinMode(PIN_BATTERY_CHARGER_STAT, INPUT_PULLDOWN);
+    delayMicroseconds(100);
     bool pulldown_ed_state = digitalRead(PIN_BATTERY_CHARGER_STAT) == HIGH;
 
     if(!pulldown_ed_state && pullup_ed_state)
@@ -181,13 +184,12 @@ public:
                 set_charging_current(0);
 
             wait:
-                dbg_print(to_string().c_str());
                 DELAY(WAIT_TIME);
 
             temp:
                 // temperature check
-                battery_temp = thermistor_read_battery();
                 charger_temp = thermistor_read_charger();
+                battery_temp = thermistor_read_battery();
                 if(battery_temp < BATTERY_CHARGEABLE_TEMP_LOW)
                 {
                     not_charging_reason = ncr_battery_temp_too_low;
@@ -220,6 +222,7 @@ public:
                 decrease_steps = random_step();
                 increase_steps = random_step();
 
+
                 // measure charging power using decreased current
                 set_charging_current(prev_current_index - decrease_steps); // random walk
                 decreased_current_index = charging_current_index;
@@ -228,7 +231,7 @@ public:
                 decreased_solar_voltage = adc_read_solar_voltage();
                 decreased_power = decreased_current * decreased_solar_voltage;
 
-                // measure charging power using increased current
+                // measure charging power using increased current and measure battery voltage
                 set_charging_current(prev_current_index + increase_steps); // random walk
                 increased_current_index = charging_current_index;
                 DELAY(CHARGE_CURRENT_STABILIZE_TIME);
@@ -236,26 +239,55 @@ public:
                 increased_solar_voltage = adc_read_solar_voltage();
                 increased_power = increased_current * increased_solar_voltage;                    
 
+                // read battery voltage
+                // connect battery to the voltage divider
+                adc_connect_battery_voltage(); // battery voltage sense circuit has a stabilization capacitor,
+                    // so it takes some time to the measured voltage to be stabilized.
+                DELAY(10);
+                battery_voltage = adc_read_battery_voltage();
+                // disconnect battery
+                adc_disconnect_battery_voltage();
+
+                if(increased_solar_voltage < battery_voltage + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE ||
+                                increased_solar_voltage < MIN_SOLAR_VOLTAGE)
+                {
+                    increased_power = 0.0f; // too low input voltage
+                }
+
+                if(decreased_solar_voltage < battery_voltage + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE ||
+                                decreased_solar_voltage < MIN_SOLAR_VOLTAGE)
+                {
+                    decreased_power = 0.0f; // too low input voltage
+                }
+
+                if(prev_sol_vol < battery_voltage + MINIMUM_SOLAR_VOLTAGE_OVER_BATTERY_VOLTAGE ||
+                                prev_sol_vol < MIN_SOLAR_VOLTAGE)
+                {
+                    prev_power = 0.0f;
+                }
+
                 // check which is larger
-                if(increased_power >= prev_power + VALID_POWER_INCREASE)
+                if(increased_power > prev_power)
                 {
                     set_charging_current(increased_current_index);
                     charging_current = increased_current;
                     solar_voltage = increased_solar_voltage;
                     charging_power = increased_power;
                 }
-                else
+                else if(decreased_power > prev_power)
                 {
                     set_charging_current(decreased_current_index);
                     charging_current = decreased_current;
                     solar_voltage = decreased_solar_voltage;
                     charging_power = decreased_power;
                 }
-
-                adc_connect_battery_voltage();
-                DELAY(1);
-                battery_voltage = adc_read_battery_voltage();
-                adc_disconnect_battery_voltage();
+                else
+                {
+                    set_charging_current(prev_current_index);
+                    solar_voltage = prev_sol_vol;
+                    charging_power = prev_power;
+                }
+                DELAY(CHARGE_CURRENT_STABILIZE_TIME);
 
                 chip_charging_state = read_charger_chip_charging_state();
 
@@ -274,10 +306,9 @@ public:
                     }
                     else if(chip_charging_state == ccs_not_charging_nor_complete)
                     {
-                        charging_state = cs_not_charging;
-
                         // check why the charging is not proceeding
                     solar_too_low:
+                        charging_state = cs_not_charging;
                         if(battery_voltage < MIN_BATTERY_VOLTAGE)
                         {
                             not_charging_reason = ncr_battery_error;
@@ -293,6 +324,7 @@ public:
                     } // if
                 } // if
 
+                dbg_print(to_string().c_str());
                 goto wait;
 
             } // switch
@@ -324,18 +356,18 @@ public:
         str += " ";
         str += ncr;
 
-        #define S_OUT(x) str += " " #x ":" + float_to_string(x)
+        #define S_OUT(n, x) str += " " #n ":" + float_to_string(x)
 
-        S_OUT(battery_temp);
-        S_OUT(charger_temp);
+        S_OUT(BT, battery_temp);
+        S_OUT(CT, charger_temp);
         if(!temperature_error)
         {
             // on temperature error, these measurements will not be taken
-            str += " charging_current_index:" + String(charging_current_index);
-            S_OUT(charging_current);
-            S_OUT(battery_voltage);
-            S_OUT(solar_voltage);
-            S_OUT(charging_power);
+            str += " CCI:" + String(charging_current_index);
+            S_OUT(CC, charging_current);
+            S_OUT(BV, battery_voltage);
+            S_OUT(SV, solar_voltage);
+            S_OUT(CP, charging_power);
         }
         str += "\n";
 
