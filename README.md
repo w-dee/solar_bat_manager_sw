@@ -2,12 +2,12 @@
 
 This is an abandoned project of making a li-ion charger by a Solar battery.
 
-# Using STM32F030F6 in PlatfomIO
+# Using STM32G030F6 in PlatfomIO
 
-As of Nov 2023, STM32F030F6 is not yet available in PlatformIO but using custom platformio.ini you can use it.
+As of Nov 2023, STM32G030F6 is not yet available in PlatformIO but using custom platformio.ini you can use it.
 
 
- + boards/genericSTM32FG030F6.json is required to define generic STM32F030F6 board.
+ + boards/genericSTM32G030F6.json is required to define generic STM32F030F6 board.
  + in platformio.ini:
    + specify `platform = ststm32` 
    + specify `board_build.ldscript = ldscript_G030F6Px.ld`, but it seems to work without using this ld script.
