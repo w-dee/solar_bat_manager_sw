@@ -14,6 +14,7 @@
 #define CHARGE_CURRENT_STABILIZE_TIME 10 // in ms
 
 #define CHARGING_CURRENT_PWM_WIDTH 10 // pwm width in bits
+#define CHARGING_CURRENT_PWM_FREQUENCY 62500
 #define MAX_CHARGING_CURRENT_INDEX ((1<<CHARGING_CURRENT_PWM_WIDTH)-1)
 #define MAX_CHARGING_CURRENT_INDEX_STEP MAX_CHARGING_CURRENT_INDEX // maximum step count for increase/decrease charging current index
 #define MIN_BATTERY_VOLTAGE 3.6f // Minimum battery voltage  
@@ -159,9 +160,8 @@ public:
         pinMode(PIN_CHARGE_CURRENT, OUTPUT);
         pinMode(PIN_BATTERY_CHARGER_STAT, INPUT_PULLDOWN);
 
-
-        analogWriteFrequency(62500);
-        analogWriteResolution(10);
+        analogWriteResolution(CHARGING_CURRENT_PWM_WIDTH);
+        analogWriteFrequency(CHARGING_CURRENT_PWM_FREQUENCY);
     }
 
 

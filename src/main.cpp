@@ -113,7 +113,6 @@ void dump_i2c()
 
 void setup()
 {
-
     check_boot0_pin();
 
     pinMode(PA4, INPUT);
@@ -128,7 +127,6 @@ void setup()
 //    dump_i2c();
 
     Wire.setClock(400000);
-
 }
 
 void loop()
