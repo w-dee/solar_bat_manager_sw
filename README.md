@@ -4,8 +4,7 @@ This is an abandoned project of making a li-ion charger by a Solar battery.
 
 # Using STM32G030F6 in PlatfomIO
 
-As of Nov 2023, STM32G030F6 is not yet available in PlatformIO but using custom platformio.ini you can use it.
-
+As of Nov. 2023, STM32G030F6 is not yet available in PlatformIO, but you can use it using custom platformio.ini.
 
  + boards/genericSTM32G030F6.json is required to define generic STM32F030F6 board.
  + in platformio.ini:
@@ -19,5 +18,7 @@ As of Nov 2023, STM32G030F6 is not yet available in PlatformIO but using custom 
  + Define -DI2C_TIMING_FMP=xxxx -DI2C_TIMING_FM=xxxx -DI2C_TIMING_SM=xxxx constants to avoid linking brute-force, fat code for finding optimal I2C timing. See main.cpp .
  + Do not use double precision floats if possible. Use prefix "f" (eg. 0.0f, 3.14f ...) to make the constant float.
  + Avoid using logf and expf (and other math functions) if possible. See thermistor.cpp for smaller implementations of logf and expf.
+ + Avoid using String::String(double) and String::String(float). These implementations use dtostrf to convert a double precision float to string; As the name suggests, it include double precision computation and will make the binary large. Make-shift version of dtostrf which does not use double precision float, named "ftostrf", is available in lib/ftostrf (LGPL license).
  + Dump your code with  `.platformio/packages/toolchain-gccarmnoneeabi/bin/arm-none-eabi-objdump -S .pio/build/genericSTM32G030F6/firmware.elf` and find large code block, or double-precision computation routine, then think how not to use it.
+
 
