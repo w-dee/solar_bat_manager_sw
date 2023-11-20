@@ -1,6 +1,6 @@
 # solar_bat_manager_sw
 
-This is abandoned project of making a li-ion charger by a Solar battery.
+This is an abandoned project of making a li-ion charger by a Solar battery.
 
 # Using STM32F030F6 in PlatfomIO
 
